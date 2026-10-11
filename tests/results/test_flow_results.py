@@ -5,6 +5,7 @@ import pytest
 
 from prefect import flow, task
 from prefect.blocks.core import Block
+from prefect.client.orchestration import PrefectClient
 from prefect.context import get_run_context
 from prefect.exceptions import MissingResult
 from prefect.filesystems import LocalFileSystem
@@ -173,6 +174,23 @@ async def test_flow_result_serializer(serializer, prefect_client):
     ).state
     assert await api_state.result() == 1
     await assert_uses_result_serializer(api_state, serializer, prefect_client)
+
+
+@pytest.mark.parametrize("value", [{"data": 1}, {"result": 1}, {"data": "hello"}])
+async def test_flow_json_result_with_record_keys_is_read_from_storage(
+    value: dict[str, object], prefect_client: PrefectClient
+):
+    @flow(result_serializer="json", persist_result=True)
+    def foo():
+        return value
+
+    state = foo(return_state=True)
+    assert await state.result() == value
+
+    api_state = (
+        await prefect_client.read_flow_run(state.state_details.flow_run_id)
+    ).state
+    assert await api_state.result() == value
 
 
 async def test_flow_result_storage_by_instance(prefect_client):

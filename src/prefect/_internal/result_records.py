@@ -170,17 +170,15 @@ class ResultRecord(BaseModel, Generic[R]):
     @model_validator(mode="before")
     @classmethod
     def coerce_old_format(cls, value: dict[str, Any] | Any) -> dict[str, Any]:
-        if isinstance(value, dict):
+        # Only the legacy `PersistedResultBlob` shape is coerced; any other dict
+        # without the record envelope may be a raw serialized result
+        if isinstance(value, dict) and "data" in value and "serializer" in value:
             if TYPE_CHECKING:  # TODO: # isintance doesn't accept generic parameters
                 value = cast(dict[str, Any], value)
-            if "data" in value:
-                value["result"] = value.pop("data")
-            if "metadata" not in value:
-                value["metadata"] = {}
+            value["result"] = value.pop("data")
+            value["metadata"] = {"serializer": value.pop("serializer")}
             if "expiration" in value:
                 value["metadata"]["expiration"] = value.pop("expiration")
-            if "serializer" in value:
-                value["metadata"]["serializer"] = value.pop("serializer")
             if "prefect_version" in value:
                 value["metadata"]["prefect_version"] = value.pop("prefect_version")
         return value
