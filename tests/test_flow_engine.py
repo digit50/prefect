@@ -4969,6 +4969,34 @@ class TestAsyncGenerators:
         tr = await prefect_client.read_flow_run(tr_id)
         assert tr.state.is_failed()
 
+    async def test_generator_flow_closed_early_is_completed(
+        self, prefect_client: PrefectClient
+    ):
+        hooks: list[str] = []
+        finally_ran: list[bool] = []
+
+        @flow(
+            on_completion=[lambda *_: hooks.append("completion")],
+            on_failure=[lambda *_: hooks.append("failure")],
+        )
+        async def g():
+            try:
+                yield FlowRunContext.get().flow_run.id
+                yield 2
+            finally:
+                finally_ran.append(FlowRunContext.get() is not None)
+
+        gen = g()
+        async for val in gen:
+            tr_id = val
+            break
+        await gen.aclose()
+
+        tr = await prefect_client.read_flow_run(tr_id)
+        assert tr.state.is_completed()
+        assert hooks == ["completion"]
+        assert finally_ran == [True]
+
     async def test_generator_retries(self):
         """
         Test that a generator can retry and will re-emit its events

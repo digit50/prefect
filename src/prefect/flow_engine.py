@@ -2214,7 +2214,8 @@ async def run_generator_flow_async(
                 except (StopAsyncIteration, GeneratorExit) as exc:
                     await engine.handle_success(None)
                     if isinstance(exc, GeneratorExit):
-                        gen.throw(exc)
+                        await gen.aclose()
+                        raise
 
     # async generators can't return, but we can raise failures here
     if engine.state.is_failed():
